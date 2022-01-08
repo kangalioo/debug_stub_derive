@@ -1,7 +1,8 @@
 // Crate Dependencies ---------------------------------------------------------
 use debug_stub_derive::DebugStub;
-
 use std::fmt::Debug;
+
+struct StructWithoutDebug;
 
 // Struct Tests ---------------------------------------------------------------
 #[test]
@@ -47,11 +48,6 @@ fn test_struct() {
         number: u64,
     }
 
-    struct StructWithoutDebug {
-        #[allow(dead_code)]
-        string: String,
-    }
-
     #[derive(DebugStub)]
     struct TestStruct {
         value: bool,
@@ -64,9 +60,7 @@ fn test_struct() {
     let s = TestStruct {
         value: true,
         a: StructWithDebug { number: 42 },
-        b: StructWithoutDebug {
-            string: "Hello World".to_string(),
-        },
+        b: StructWithoutDebug,
     };
 
     assert_eq!(format!("{:?}", s), "TestStruct { value: true, a: StructWithDebug { number: 42 }, b: StructWithoutDebugReplaceValue }");
@@ -212,8 +206,6 @@ fn test_struct_with_type_where_clause() {
 
 #[test]
 fn test_struct_optional() {
-    struct StructWithoutDebug;
-
     #[derive(DebugStub)]
     struct TestStruct {
         #[debug_stub(some = "StructWithoutDebugReplaceValue")]
@@ -259,23 +251,20 @@ fn test_struct_optional() {
 
 #[test]
 fn test_struct_result_both() {
-    struct StructWithoutDebug;
-    struct ErrorWithoutDebug;
-
     #[derive(DebugStub)]
     struct TestStruct {
         #[debug_stub(
             ok = "StructWithoutDebugReplaceValue",
             err = "ErrorWithoutDebugReplaceValue"
         )]
-        s: Result<StructWithoutDebug, ErrorWithoutDebug>,
+        s: Result<StructWithoutDebug, StructWithoutDebug>,
     }
 
     assert_eq!(
         format!(
             "{:?}",
             TestStruct {
-                s: Err(ErrorWithoutDebug)
+                s: Err(StructWithoutDebug)
             }
         ),
         "TestStruct { s: Err(ErrorWithoutDebugReplaceValue) }"
@@ -285,7 +274,7 @@ fn test_struct_result_both() {
         format!(
             "{:#?}",
             TestStruct {
-                s: Err(ErrorWithoutDebug)
+                s: Err(StructWithoutDebug)
             }
         ),
         r#"TestStruct {
@@ -322,8 +311,6 @@ fn test_struct_result_both() {
 
 #[test]
 fn test_struct_result_ok() {
-    struct StructWithoutDebug;
-
     #[derive(DebugStub)]
     struct TestStruct {
         #[debug_stub(ok = "StructWithoutDebugReplaceValue")]
@@ -487,8 +474,6 @@ fn test_struct_result_compare_std() {
 
 #[test]
 fn test_struct_tuple() {
-    struct StructWithoutDebug;
-
     #[derive(DebugStub)]
     struct A();
 
@@ -519,7 +504,6 @@ fn test_struct_tuple() {
 #[test]
 fn test_struct_generic() {
     use std::marker::PhantomData;
-    struct StructWithoutDebug;
 
     #[derive(DebugStub)]
     struct A<T>(T);
@@ -602,11 +586,6 @@ fn test_enum() {
         number: u64,
     }
 
-    struct StructWithoutDebug {
-        #[allow(dead_code)]
-        string: String,
-    }
-
     #[derive(DebugStub)]
     enum TestEnum {
         VariantA(
@@ -626,13 +605,7 @@ fn test_enum() {
     assert_eq!(
         format!(
             "{:?}",
-            TestEnum::VariantA(
-                StructWithDebug { number: 42 },
-                StructWithoutDebug {
-                    string: "Hello World".to_string()
-                },
-                true
-            )
+            TestEnum::VariantA(StructWithDebug { number: 42 }, StructWithoutDebug, true)
         ),
         "VariantA(StructWithDebug { number: 42 }, StructWithoutDebugReplaceValue, true)"
     );
@@ -642,9 +615,7 @@ fn test_enum() {
             a: StructWithDebug {
                 number: 42
             },
-            b: StructWithoutDebug {
-                string: "Hello World".to_string()
-            },
+            b: StructWithoutDebug,
             c: true
 
         }), "VariantB { a: StructWithDebug { number: 42 }, b: StructWithoutDebugReplaceValue, c: true }"
@@ -811,8 +782,6 @@ fn test_enum_with_type_where_clause() {
 
 #[test]
 fn test_enum_optional() {
-    struct StructWithoutDebug;
-
     #[derive(DebugStub)]
     enum TestEnum {
         VariantA(#[debug_stub(some = "StructWithoutDebugReplaceValue")] Option<StructWithoutDebug>),
@@ -844,9 +813,6 @@ fn test_enum_optional() {
 
 #[test]
 fn test_enum_result_both() {
-    struct StructWithoutDebug;
-    struct ErrorWithoutDebug;
-
     #[derive(DebugStub)]
     enum TestEnum {
         VariantA(
@@ -854,17 +820,17 @@ fn test_enum_result_both() {
                 ok = "StructWithoutDebugReplaceValue",
                 err = "ErrorWithoutDebugReplaceValue"
             )]
-            Result<StructWithoutDebug, ErrorWithoutDebug>,
+            Result<StructWithoutDebug, StructWithoutDebug>,
         ),
     }
 
     assert_eq!(
-        format!("{:?}", TestEnum::VariantA(Err(ErrorWithoutDebug))),
+        format!("{:?}", TestEnum::VariantA(Err(StructWithoutDebug))),
         "VariantA(Err(ErrorWithoutDebugReplaceValue))"
     );
 
     assert_eq!(
-        format!("{:#?}", TestEnum::VariantA(Err(ErrorWithoutDebug))),
+        format!("{:#?}", TestEnum::VariantA(Err(StructWithoutDebug))),
         r#"VariantA(
     Err(
         ErrorWithoutDebugReplaceValue,
@@ -889,8 +855,6 @@ fn test_enum_result_both() {
 
 #[test]
 fn test_enum_result_ok() {
-    struct StructWithoutDebug;
-
     #[derive(DebugStub)]
     enum TestEnum {
         VariantA(
@@ -1064,7 +1028,6 @@ fn test_enum_result_compare_std() {
 #[test]
 fn test_enum_generic() {
     use std::marker::PhantomData;
-    struct StructWithoutDebug;
 
     #[derive(DebugStub)]
     enum Enum<T> {
