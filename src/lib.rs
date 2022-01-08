@@ -148,7 +148,7 @@ fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenS
             if let syn::GenericParam::Type(generic_type_param) = generic_param {
                 generic_type_param
                     .bounds
-                    .push(parse_quote!(::std::fmt::Debug));
+                    .push(parse_quote!(::core::fmt::Debug));
             }
         }
     }
@@ -202,8 +202,8 @@ fn implement_named_fields_struct_debug(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote!(
-        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl #impl_generics ::core::fmt::Debug for #ident #ty_generics #where_clause {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 let mut f = f.debug_struct(#name);
                 #(#stmts)*
                 f.finish()
@@ -223,8 +223,8 @@ fn implement_unnamed_fields_struct_debug(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote!(
-        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl #impl_generics ::core::fmt::Debug for #ident #ty_generics #where_clause {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 let mut f = f.debug_tuple(#name);
                 #(#stmts)*
                 f.finish()
@@ -239,8 +239,8 @@ fn implement_unit_struct_debug(ident: &Ident, generics: &Generics) -> proc_macro
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote!(
-        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl #impl_generics ::core::fmt::Debug for #ident #ty_generics #where_clause {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 f.write_str(#name)
             }
         }
@@ -257,8 +257,8 @@ fn implement_enum_debug(
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
-        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        impl #impl_generics ::core::fmt::Debug for #ident #ty_generics #where_clause {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                 match self {
                     #(#arms)*
                 }
