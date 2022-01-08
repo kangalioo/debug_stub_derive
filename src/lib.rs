@@ -107,7 +107,6 @@ use syn::{
     MetaList, MetaNameValue, NestedMeta, Pat, Stmt,
 };
 
-/// Implementation of the `#[derive(DebugStub)]` derive macro.
 #[proc_macro_derive(DebugStub, attributes(debug_stub))]
 pub fn derive_debug_stub(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -129,10 +128,14 @@ fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenS
                     &stmts,
                 ))
             }
-            Fields::Unnamed(fields) => Err(syn::Error::new_spanned(
-                fields,
-                "unnamed fields are not supported",
-            )),
+            Fields::Unnamed(fields) => {
+                let stmts = generate_tuple_field_stmts(&fields)?;
+                Ok(implement_unnamed_fields_struct_debug(
+                    &ast.ident,
+                    &ast.generics,
+                    &stmts,
+                ))
+            }
             Fields::Unit => Ok(implement_unit_struct_debug(&ast.ident, &ast.generics)),
         },
         Data::Enum(DataEnum { variants, .. }) => Ok(implement_enum_debug(
@@ -162,6 +165,25 @@ fn implement_named_fields_struct_debug(
         impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                 let mut f = f.debug_struct(#name);
+                #(#stmts)*
+                f.finish()
+            }
+        }
+    )
+}
+
+fn implement_unnamed_fields_struct_debug(
+    ident: &Ident,
+    generics: &Generics,
+    stmts: &[Stmt],
+) -> proc_macro2::TokenStream {
+    let name = ident.to_string();
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    quote!(
+        impl #impl_generics ::std::fmt::Debug for #ident #ty_generics #where_clause {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                let mut f = f.debug_tuple(#name);
                 #(#stmts)*
                 f.finish()
             }
@@ -209,6 +231,20 @@ fn generate_field_stmts(fields: &FieldsNamed) -> syn::Result<Vec<Stmt>> {
             let expr = parse_quote!(self.#ident);
             let name = ident.to_string();
             let (_, stmt) = extract_value_attr(&expr, &field.attrs, Some(name))?;
+            Ok(stmt)
+        })
+        .collect()
+}
+
+fn generate_tuple_field_stmts(fields: &FieldsUnnamed) -> syn::Result<Vec<Stmt>> {
+    fields
+        .unnamed
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let index = syn::Index::from(index);
+            let expr = parse_quote!(self.#index);
+            let (_, stmt) = extract_value_attr(&expr, &field.attrs, None)?;
             Ok(stmt)
         })
         .collect()

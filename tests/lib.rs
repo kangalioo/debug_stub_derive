@@ -485,6 +485,23 @@ fn test_struct_result_compare_std() {
     assert_eq!(format!("{:#?}", struct_a), format!("{:#?}", struct_b));
 }
 
+#[test]
+fn test_struct_tuple() {
+    struct StructWithoutDebug;
+
+    #[derive(DebugStub)]
+    struct A();
+
+    #[derive(DebugStub)]
+    struct B((), u32, #[debug_stub = "replacement"] StructWithoutDebug);
+
+    assert_eq!(format!("{:?}", A()), "A");
+    assert_eq!(
+        format!("{:?}", B((), 5, StructWithoutDebug)),
+        "B((), 5, replacement)"
+    );
+}
+
 // Enum Tests -----------------------------------------------------------------
 
 #[test]
