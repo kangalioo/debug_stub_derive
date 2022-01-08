@@ -107,6 +107,7 @@ use syn::{
     MetaList, MetaNameValue, NestedMeta, Pat, Stmt,
 };
 
+/// Implementation of the `#[derive(DebugStub)]` derive macro.
 #[proc_macro_derive(DebugStub, attributes(debug_stub))]
 pub fn derive_debug_stub(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -117,6 +118,7 @@ pub fn derive_debug_stub(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     .into()
 }
 
+/// Central expansion function
 fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     match &ast.data {
         Data::Struct(DataStruct { fields, .. }) => match fields {
@@ -153,6 +155,8 @@ fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenS
     }
 }
 
+/// Generates named fields struct Debug impl (`MyStruct { field1: ..., field2: ... }`) from a given
+/// list of formatter statements (`f.field("field1", ...)`, `f.field("field2", ...)`)
 fn implement_named_fields_struct_debug(
     ident: &Ident,
     generics: &Generics,
@@ -172,6 +176,8 @@ fn implement_named_fields_struct_debug(
     )
 }
 
+/// Generates unnamed fields struct Debug impl (`MyStruct(..., ...)`) from a given
+/// list of formatter statements (`f.field(...)`, `f.field(...)`)
 fn implement_unnamed_fields_struct_debug(
     ident: &Ident,
     generics: &Generics,
@@ -191,6 +197,7 @@ fn implement_unnamed_fields_struct_debug(
     )
 }
 
+/// Generates unit struct Debug impl (`MyStruct`)
 fn implement_unit_struct_debug(ident: &Ident, generics: &Generics) -> proc_macro2::TokenStream {
     let name = ident.to_string();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -204,6 +211,8 @@ fn implement_unit_struct_debug(ident: &Ident, generics: &Generics) -> proc_macro
     )
 }
 
+/// Generates enum Debug impl from given match arm list (`MyStruct::A => { ... }`,
+/// `MyStruct::B => { ... }`)
 fn implement_enum_debug(
     ident: &Ident,
     generics: &Generics,
@@ -222,6 +231,7 @@ fn implement_enum_debug(
     }
 }
 
+/// Generates Formatter statements for a named fields struct like `f.field("a", self.a)`
 fn generate_field_stmts(fields: &FieldsNamed) -> syn::Result<Vec<Stmt>> {
     fields
         .named
@@ -236,6 +246,7 @@ fn generate_field_stmts(fields: &FieldsNamed) -> syn::Result<Vec<Stmt>> {
         .collect()
 }
 
+/// Generates Formatter statements for a tuple struct like `f.field(self.0)`
 fn generate_tuple_field_stmts(fields: &FieldsUnnamed) -> syn::Result<Vec<Stmt>> {
     fields
         .unnamed
@@ -250,6 +261,7 @@ fn generate_tuple_field_stmts(fields: &FieldsUnnamed) -> syn::Result<Vec<Stmt>> 
         .collect()
 }
 
+/// Generates a single match arm for an enum Debug impl
 fn generate_arm(ident: &Ident, variant: &syn::Variant) -> syn::Result<Arm> {
     let variant_ident = &variant.ident;
     let variant_name = variant_ident.to_string();
@@ -304,6 +316,7 @@ fn generate_arm(ident: &Ident, variant: &syn::Variant) -> syn::Result<Arm> {
     }
 }
 
+/// Generates match arm pattern and Formatter statements for an enum variant
 fn generate_enum_variant_fields(
     fields: Vec<(Ident, &[Attribute], Option<String>)>,
 ) -> syn::Result<(Vec<Pat>, Vec<Stmt>)> {
@@ -337,50 +350,46 @@ fn generate_enum_variant_fields(
     Ok((pats, stmts))
 }
 
+/// Generates a single Formatter statement from given field and attributes. Also returns whether the
+/// field value is actually being used in the statement
 fn extract_value_attr(
     expr: &Expr,
     attrs: &[Attribute],
     name: Option<String>,
 ) -> syn::Result<(bool, Stmt)> {
     for attr in attrs {
-        if let Ok(meta) = attr.parse_meta() {
-            match meta {
-                Meta::Path(path) => {
-                    if path.get_ident().map_or(false, |i| i == "debug_stub") {
-                        return Err(syn::Error::new_spanned(
-                            path,
-                            "expected `List` or `NameValue`",
-                        ));
+        let meta = match attr.parse_meta() {
+            Ok(meta) if meta.path().is_ident("debug_stub") => meta,
+            _ => continue,
+        };
+
+        match meta {
+            // `#[debug_stub]`
+            Meta::Path(path) => {
+                return Err(syn::Error::new_spanned(
+                    path,
+                    "expected `List` or `NameValue`",
+                ));
+            }
+            // `#[debug_stub(key1 = val1, key2 = val2)]`
+            Meta::List(MetaList { nested, .. }) => {
+                return match extract_named_value_attrs(nested.iter()) {
+                    (None, None, Some(some)) => Ok((true, implement_some_attr(&some, name, expr))),
+                    (Some(ok), Some(err), None) => {
+                        Ok((true, implement_result_attr(&ok, &err, name, expr)))
                     }
-                }
-                Meta::List(MetaList { path, nested, .. }) => {
-                    if path.get_ident().map_or(false, |i| i == "debug_stub") {
-                        return match extract_named_value_attrs(nested.iter()) {
-                            (None, None, Some(some)) => {
-                                Ok((true, implement_some_attr(&some, name, expr)))
-                            }
-                            (Some(ok), Some(err), None) => {
-                                Ok((true, implement_result_attr(&ok, &err, name, expr)))
-                            }
-                            (Some(ok), None, None) => {
-                                Ok((true, implement_ok_attr(&ok, name, expr)))
-                            }
-                            (None, Some(err), None) => {
-                                Ok((true, implement_err_attr(&err, name, expr)))
-                            }
-                            _ => Err(syn::Error::new_spanned(
-                                nested,
-                                "expected `some = _`, `ok = _`, `err = _`, or `ok = _, err = _`",
-                            )),
-                        };
-                    }
-                }
-                Meta::NameValue(MetaNameValue { path, lit, .. }) => {
-                    if path.get_ident().map_or(false, |i| i == "debug_stub") {
-                        let lit = syn::parse2::<LitStr>(lit.to_token_stream())?;
-                        return Ok((false, implement_replace_attr(name, &lit.value())));
-                    }
-                }
+                    (Some(ok), None, None) => Ok((true, implement_ok_attr(&ok, name, expr))),
+                    (None, Some(err), None) => Ok((true, implement_err_attr(&err, name, expr))),
+                    _ => Err(syn::Error::new_spanned(
+                        nested,
+                        "expected `some = _`, `ok = _`, `err = _`, or `ok = _, err = _`",
+                    )),
+                };
+            }
+            // `#[debug_stub = "literal"]`
+            Meta::NameValue(MetaNameValue { lit, .. }) => {
+                let lit = syn::parse2::<LitStr>(lit.to_token_stream())?;
+                return Ok((false, implement_replace_attr(name, &lit.value())));
             }
         }
     }
@@ -391,6 +400,7 @@ fn extract_value_attr(
     })
 }
 
+/// Extracts the `ok = "..."`, `err = "..."`, and `some = "..."` attributes, if present
 fn extract_named_value_attrs<'a>(
     nested: impl Iterator<Item = &'a NestedMeta>,
 ) -> (Option<String>, Option<String>, Option<String>) {
@@ -403,11 +413,11 @@ fn extract_named_value_attrs<'a>(
             ..
         })) = nested
         {
-            if path.get_ident().map_or(false, |i| i == "some") {
+            if path.is_ident("some") {
                 some = Some(lit.value());
-            } else if path.get_ident().map_or(false, |i| i == "ok") {
+            } else if path.is_ident("ok") {
                 ok = Some(lit.value());
-            } else if path.get_ident().map_or(false, |i| i == "err") {
+            } else if path.is_ident("err") {
                 err = Some(lit.value());
             }
         }
@@ -416,6 +426,7 @@ fn extract_named_value_attrs<'a>(
     (ok, err, some)
 }
 
+/// Generates `f.field()` Formatter statement for `#[debug_stub = "..."]`
 fn implement_replace_attr(name: Option<String>, value: &str) -> Stmt {
     if let Some(name) = name {
         parse_quote!(f.field(#name, &format_args!("{}", #value));)
@@ -424,6 +435,7 @@ fn implement_replace_attr(name: Option<String>, value: &str) -> Stmt {
     }
 }
 
+/// Generates `f.field()` Formatter statement for `#[debug_stub(some = "...")]`
 fn implement_some_attr(some: &str, name: Option<String>, expr: &Expr) -> Stmt {
     if let Some(name) = name {
         parse_quote! {
@@ -444,6 +456,7 @@ fn implement_some_attr(some: &str, name: Option<String>, expr: &Expr) -> Stmt {
     }
 }
 
+/// Generates `f.field()` Formatter statement for `#[debug_stub(ok = "...", err = "...")]`
 fn implement_result_attr(ok: &str, err: &str, name: Option<String>, expr: &Expr) -> Stmt {
     if let Some(name) = name {
         parse_quote! {
@@ -464,6 +477,7 @@ fn implement_result_attr(ok: &str, err: &str, name: Option<String>, expr: &Expr)
     }
 }
 
+/// Generates `f.field()` Formatter statement for `#[debug_stub(ok = "...")]`
 fn implement_ok_attr(ok: &str, name: Option<String>, expr: &Expr) -> Stmt {
     if let Some(name) = name {
         parse_quote! {
@@ -484,6 +498,7 @@ fn implement_ok_attr(ok: &str, name: Option<String>, expr: &Expr) -> Stmt {
     }
 }
 
+/// Generates `f.field()` Formatter statement for `#[debug_stub(err = "...")]`
 fn implement_err_attr(err: &str, name: Option<String>, expr: &Expr) -> Stmt {
     if let Some(name) = name {
         parse_quote! {
