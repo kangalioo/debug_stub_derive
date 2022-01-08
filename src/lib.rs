@@ -102,9 +102,9 @@ extern crate proc_macro;
 use proc_macro2::Span;
 use quote::{quote, ToTokens as _};
 use syn::{
-    parse_macro_input, parse_quote, Arm, Attribute, Data, DataEnum, DataStruct, DataUnion,
-    DeriveInput, Expr, Fields, FieldsNamed, FieldsUnnamed, Generics, Ident, Lit, LitStr, Meta,
-    MetaList, MetaNameValue, NestedMeta, Pat, Stmt,
+    parse_macro_input, parse_quote, spanned::Spanned as _, Arm, Attribute, Data, DataEnum,
+    DataStruct, DataUnion, DeriveInput, Expr, Fields, FieldsNamed, FieldsUnnamed, Generics, Ident,
+    Lit, LitStr, Meta, MetaList, MetaNameValue, NestedMeta, Pat, Stmt,
 };
 
 /// Implementation of the `#[derive(DebugStub)]` derive macro.
@@ -120,12 +120,36 @@ pub fn derive_debug_stub(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
 /// Central expansion function
 fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    // check if there's an `#[debug_stub(ignore_generics)]` attribute
+    let mut ignore_generics = false;
+    for attr in &ast.attrs {
+        let meta = match attr.parse_meta() {
+            Ok(meta) if meta.path().is_ident("debug_stub") => meta,
+            _ => continue,
+        };
+
+        if let Meta::List(inner) = &meta {
+            for nested_meta in &inner.nested {
+                match nested_meta {
+                    NestedMeta::Meta(meta) if meta.path().is_ident("ignore_generics") => {
+                        ignore_generics = true
+                    }
+                    _ => return Err(syn::Error::new(meta.span(), "expected `ignore_generics`")),
+                }
+            }
+        } else {
+            return Err(syn::Error::new(meta.span(), "expected `ignore_generics`"));
+        }
+    }
+
     let mut generics_debug_bounded = ast.generics.clone();
-    for generic_param in &mut generics_debug_bounded.params {
-        if let syn::GenericParam::Type(generic_type_param) = generic_param {
-            generic_type_param
-                .bounds
-                .push(parse_quote!(::std::fmt::Debug));
+    if !ignore_generics {
+        for generic_param in &mut generics_debug_bounded.params {
+            if let syn::GenericParam::Type(generic_type_param) = generic_param {
+                generic_type_param
+                    .bounds
+                    .push(parse_quote!(::std::fmt::Debug));
+            }
         }
     }
 

@@ -518,10 +518,21 @@ fn test_struct_tuple() {
 
 #[test]
 fn test_struct_generic() {
+    use std::marker::PhantomData;
+    struct StructWithoutDebug;
+
     #[derive(DebugStub)]
     struct A<T>(T);
 
+    #[derive(DebugStub)]
+    #[debug_stub(ignore_generics)]
+    struct B<T>(PhantomData<T>);
+
     assert_eq!(format!("{:?}", A(5)), "A(5)");
+    assert_eq!(
+        format!("{:?}", B(PhantomData::<StructWithoutDebug>)),
+        "B(PhantomData)"
+    );
 }
 
 // Enum Tests -----------------------------------------------------------------
@@ -1052,10 +1063,21 @@ fn test_enum_result_compare_std() {
 
 #[test]
 fn test_enum_generic() {
+    use std::marker::PhantomData;
+    struct StructWithoutDebug;
+
     #[derive(DebugStub)]
     enum Enum<T> {
         A(T),
     }
 
+    #[derive(DebugStub)]
+    #[debug_stub(ignore_generics)]
+    struct B<T>(PhantomData<T>);
+
     assert_eq!(format!("{:?}", Enum::A(5)), "A(5)");
+    assert_eq!(
+        format!("{:?}", B(PhantomData::<StructWithoutDebug>)),
+        "B(PhantomData)"
+    );
 }
