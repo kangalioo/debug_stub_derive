@@ -495,10 +495,24 @@ fn test_struct_tuple() {
     #[derive(DebugStub)]
     struct B((), u32, #[debug_stub = "replacement"] StructWithoutDebug);
 
+    #[derive(DebugStub)]
+    struct C(
+        #[debug_stub(some = "replacement")] Option<StructWithoutDebug>,
+        #[debug_stub(ok = "MyOk", err = "MyErr")] Result<StructWithoutDebug, StructWithoutDebug>,
+    );
+
     assert_eq!(format!("{:?}", A()), "A");
     assert_eq!(
         format!("{:?}", B((), 5, StructWithoutDebug)),
         "B((), 5, replacement)"
+    );
+    assert_eq!(
+        format!("{:?}", C(Some(StructWithoutDebug), Err(StructWithoutDebug))),
+        "C(Some(replacement), Err(MyErr))"
+    );
+    assert_eq!(
+        format!("{:?}", C(None, Ok(StructWithoutDebug))),
+        "C(None, Ok(MyOk))"
     );
 }
 
