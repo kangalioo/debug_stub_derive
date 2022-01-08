@@ -120,13 +120,22 @@ pub fn derive_debug_stub(input: proc_macro::TokenStream) -> proc_macro::TokenStr
 
 /// Central expansion function
 fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let mut generics_debug_bounded = ast.generics.clone();
+    for generic_param in &mut generics_debug_bounded.params {
+        if let syn::GenericParam::Type(generic_type_param) = generic_param {
+            generic_type_param
+                .bounds
+                .push(parse_quote!(::std::fmt::Debug));
+        }
+    }
+
     match &ast.data {
         Data::Struct(DataStruct { fields, .. }) => match fields {
             Fields::Named(fields) => {
                 let stmts = generate_field_stmts(&fields)?;
                 Ok(implement_named_fields_struct_debug(
                     &ast.ident,
-                    &ast.generics,
+                    &generics_debug_bounded,
                     &stmts,
                 ))
             }
@@ -134,15 +143,18 @@ fn expand_derive_serialize(ast: &DeriveInput) -> syn::Result<proc_macro2::TokenS
                 let stmts = generate_tuple_field_stmts(&fields)?;
                 Ok(implement_unnamed_fields_struct_debug(
                     &ast.ident,
-                    &ast.generics,
+                    &generics_debug_bounded,
                     &stmts,
                 ))
             }
-            Fields::Unit => Ok(implement_unit_struct_debug(&ast.ident, &ast.generics)),
+            Fields::Unit => Ok(implement_unit_struct_debug(
+                &ast.ident,
+                &generics_debug_bounded,
+            )),
         },
         Data::Enum(DataEnum { variants, .. }) => Ok(implement_enum_debug(
             &ast.ident,
-            &ast.generics,
+            &generics_debug_bounded,
             &variants
                 .iter()
                 .map(|variant| generate_arm(&ast.ident, variant))

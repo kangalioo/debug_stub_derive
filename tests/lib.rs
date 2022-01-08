@@ -516,6 +516,14 @@ fn test_struct_tuple() {
     );
 }
 
+#[test]
+fn test_struct_generic() {
+    #[derive(DebugStub)]
+    struct A<T>(T);
+
+    assert_eq!(format!("{:?}", A(5)), "A(5)");
+}
+
 // Enum Tests -----------------------------------------------------------------
 
 #[test]
@@ -1040,4 +1048,14 @@ fn test_enum_result_compare_std() {
     assert_eq!(format!("{:?}", enum_a_b), format!("{:?}", enum_b_b));
 
     assert_eq!(format!("{:#?}", enum_a_b), format!("{:#?}", enum_b_b));
+}
+
+#[test]
+fn test_enum_generic() {
+    #[derive(DebugStub)]
+    enum Enum<T> {
+        A(T),
+    }
+
+    assert_eq!(format!("{:?}", Enum::A(5)), "A(5)");
 }
